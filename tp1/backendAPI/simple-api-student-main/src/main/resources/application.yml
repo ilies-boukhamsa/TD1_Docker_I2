@@ -1,0 +1,29 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          lob:
+            non_contextual_creation: true
+    generate-ddl: false
+    open-in-view: true
+  datasource:
+    url: jdbc:postgresql://database:5432/db
+    username: usr
+    password: pwd
+    driver-class-name: org.postgresql.Driver
+management:
+ server:
+   add-application-context-header: false
+ endpoints:
+   web:
+     exposure:
+       include: health,info
+backend:
+  healthcheck:
+    test: ["CMD-SHELL","wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+    interval: 5s
+    timeout: 3s
+    retries: 20

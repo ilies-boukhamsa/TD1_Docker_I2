@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  database:
+    build:
+      context: ./database          # Dockerfile Postgres (celui avec COPY initdb/)
+    environment:
+      POSTGRES_DB: db
+      POSTGRES_USER: usr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pwd}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usr -d db -h localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # Pas de ports mappés → non exposé à l'hôte
+
+  backend:
+    build:
+      context: ./backendAPI/simple-api-student-main           # Dockerfile multistage JDK/JRE (Spring Boot)
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/db
+      SPRING_DATASOURCE_USERNAME: usr
+      SPRING_DATASOURCE_PASSWORD: pwd
+      # server.port par défaut: 8080
+    depends_on:
+      database:
+        condition: service_healthy
+    expose:
+      - "8080"                     # visible sur le réseau, pas sur l’hôte
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  httpd:
+    build:
+      context: ./http-server       # Dockerfile httpd + httpd.conf (ProxyPass vers backend:8080)
+    ports:
+      - "8081:80"                  # seul point d'entrée public
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network: {}
+
+volumes:
+  pgdata: {}
